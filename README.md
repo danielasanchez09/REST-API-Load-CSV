@@ -17,7 +17,7 @@ This API with FLASK application provides a REST API to migrate data from CSV fil
 
 #Intalation
 
-1. Clone repository:
+1. Clone repository: https://github.com/danielasanchez09/REST-API-Load-CSV
 
 2. Install dependencies:
     pip install -r requirements.txt
