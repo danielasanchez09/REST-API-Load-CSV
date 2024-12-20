@@ -107,6 +107,86 @@ def batch_insert():
             return jsonify({"message": "Batch inserted successfully"}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to insert batch: {str(e)}"}), 500
+
+@app.route('/hires-by-quarter', methods=['GET'])
+def hires_by_quarter():
+    query = sqlalchemy.text("""
+    SELECT 
+        ISNULL(Dep.name,'NOT ASSIGNED') AS Department,
+        ISNULL(Jobs.name,'NOT ASSIGNED') AS Job,
+        COUNT(CASE WHEN MONTH(Hired_Emp.hire_date) BETWEEN 1 AND 3 THEN Hired_Emp.id END) AS Q1,
+        COUNT(CASE WHEN MONTH(Hired_Emp.hire_date) BETWEEN 4 AND 6 THEN Hired_Emp.id END) AS Q2,
+        COUNT(CASE WHEN MONTH(Hired_Emp.hire_date) BETWEEN 7 AND 9 THEN Hired_Emp.id END) AS Q3,
+        COUNT(CASE WHEN MONTH(Hired_Emp.hire_date) BETWEEN 10 AND 12 THEN Hired_Emp.id END) AS Q4
+    FROM hired_employees Hired_Emp
+    LEFT JOIN [dbo].[departments] Dep 
+        ON Dep.id = Hired_Emp.department_id
+    LEFT JOIN [dbo].[jobs] Jobs
+        ON Hired_Emp.job_id = Jobs.id
+    WHERE YEAR(Hired_Emp.hire_date) = 2021
+    GROUP BY Dep.name, Jobs.name
+    ORDER BY Dep.name asc, Jobs.name 
+
+    /*
+    SELECT *
+    FROM [dbo].[hired_employees]
+
+    SELECT *
+    FROM [dbo].[departments]
+
+    SELECT *
+    FROM [dbo].[jobs]
+    */
+    """)
     
+    with engine.connect() as conn:
+        result = conn.execute(query)
+        data = [dict(row._mapping) for row in result]
+    return jsonify(data)
+
+@app.route('/greater-average-hires', methods=['GET'])
+def greater_avg_hires():
+    query = sqlalchemy.text("""
+   
+    WITH HiresByDepartment AS (
+        
+        SELECT 
+            ISNULL(Dep.name,'Not Assigned') AS Department,
+            Dep.id,
+            COUNT(*) AS TotalHires
+        FROM [dbo].[hired_employees] Hired_Emp
+        LEFT JOIN [dbo].[departments] Dep
+            ON Hired_Emp.department_id = Dep.id
+        WHERE YEAR(Hired_Emp.hire_date) = 2021
+        GROUP BY Dep.name, Dep.id
+
+    )
+
+    SELECT
+        DepAvgHires.id,
+        DepAvgHires.Department,
+        DepAvgHires.TotalHires
+        --,DepAvgHires.MeanTotalHires
+    FROM (
+        
+        SELECT 
+            id,
+            department,
+            TotalHires,
+            AVG(TotalHires) OVER () AS MeanTotalHires
+        FROM HiresByDepartment
+
+
+    ) DepAvgHires
+    WHERE DepAvgHires.TotalHires > DepAvgHires.MeanTotalHires
+    ORDER BY DepAvgHires.TotalHires DESC 
+        
+    """)
+    with engine.connect() as conn:
+        result = conn.execute(query)
+        data =[dict(row._mapping) for row in result]
+    return jsonify(data)
+    
+
 if __name__ == '__main__':
     app.run(debug=True)
